@@ -1,0 +1,101 @@
+ENTRY(reset_handler)
+
+MEMORY
+{
+  RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 128K
+  FLASH (rx)     : ORIGIN = 0x8000000, LENGTH = 512K
+}
+
+EXTERN (isr_vector)
+EXTERN (stack_bottom_addr);
+
+SECTIONS
+{
+  .isr_vector ALIGN(4): {
+    KEEP(*(.isr_vector))
+  } >FLASH
+
+  .text : ALIGN(4) {
+      *(.text)
+  } >FLASH
+
+  .rodata : ALIGN(4) {
+      *(.rodata)
+  } >FLASH
+
+  .bss : ALIGN(4) {
+      *(COMMON)
+      *(.bss)
+  } >RAM
+}
+
+PROVIDE(stack_bottom_addr = ORIGIN(RAM) + LENGTH(RAM));
+stack_size = 0x1000;
+
+PROVIDE(reset_handler = null_handler);
+PROVIDE(nmi_handler = null_handler);
+PROVIDE(hard_fault_handler = blocking_handler);
+PROVIDE(mem_manage_fault_handler = blocking_handler);
+PROVIDE(bus_fault_handler = blocking_handler);
+PROVIDE(usage_fault_handler = blocking_handler);
+PROVIDE(svc_handler = null_handler);
+PROVIDE(debug_mon_handler = null_handler);
+PROVIDE(pend_sv_handler = null_handler);
+PROVIDE(systick_handler = null_handler);
+PROVIDE(wwdg_irq = null_handler);
+PROVIDE(pvd_irq = null_handler);
+PROVIDE(tamp_stamp_irq = null_handler);
+PROVIDE(rtc_wkup_irq = null_handler);
+PROVIDE(flash_irq = null_handler);
+PROVIDE(rcc_irq = null_handler);
+PROVIDE(exti0_irq = null_handler);
+PROVIDE(exti1_irq = null_handler);
+PROVIDE(exti2_irq = null_handler);
+PROVIDE(exti3_irq = null_handler);
+PROVIDE(exti4_irq = null_handler);
+PROVIDE(dma1_stream0_irq = null_handler);
+PROVIDE(dma1_stream1_irq = null_handler);
+PROVIDE(dma1_stream2_irq = null_handler);
+PROVIDE(dma1_stream3_irq = null_handler);
+PROVIDE(dma1_stream4_irq = null_handler);
+PROVIDE(dma1_stream5_irq = null_handler);
+PROVIDE(dma1_stream6_irq = null_handler);
+PROVIDE(adc_irq = null_handler);
+PROVIDE(exti9_5_irq = null_handler);
+PROVIDE(tim1_brk_tim9_irq = null_handler);
+PROVIDE(tim1_up_tim10_irq = null_handler);
+PROVIDE(tim1_trg_com_tim11_irq = null_handler);
+PROVIDE(tim1_cc_irq = null_handler);
+PROVIDE(tim2_irq = null_handler);
+PROVIDE(tim3_irq = null_handler);
+PROVIDE(tim4_irq = null_handler);
+PROVIDE(i2c1_ev_irq = null_handler);
+PROVIDE(i2c1_er_irq = null_handler);
+PROVIDE(i2c2_ev_irq = null_handler);
+PROVIDE(i2c2_er_irq = null_handler);
+PROVIDE(spi1_irq = null_handler);
+PROVIDE(spi2_irq = null_handler);
+PROVIDE(usart1_irq = null_handler);
+PROVIDE(usart2_irq = null_handler);
+PROVIDE(exti15_10_irq = null_handler);
+PROVIDE(rtc_alarm_irq = null_handler);
+PROVIDE(otg_fs_wkup_irq = null_handler);
+PROVIDE(dma1_stream7_irq = null_handler);
+PROVIDE(sdio_irq = null_handler);
+PROVIDE(tim5_irq = null_handler);
+PROVIDE(spi3_irq = null_handler);
+PROVIDE(dma2_stream0_irq = null_handler);
+PROVIDE(dma2_stream1_irq = null_handler);
+PROVIDE(dma2_stream2_irq = null_handler);
+PROVIDE(dma2_stream3_irq = null_handler);
+PROVIDE(dma2_stream4_irq = null_handler);
+PROVIDE(otg_fs_irq = null_handler);
+PROVIDE(dma2_stream5_irq = null_handler);
+PROVIDE(dma2_stream6_irq = null_handler);
+PROVIDE(dma2_stream7_irq = null_handler);
+PROVIDE(usart6_irq = null_handler);
+PROVIDE(i2c3_ev_irq = null_handler);
+PROVIDE(i2c3_er_irq = null_handler);
+PROVIDE(fpu_irq = null_handler);
+PROVIDE(spi4_irq = null_handler);
+PROVIDE(spi5_irq = null_handler);
