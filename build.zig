@@ -17,7 +17,7 @@ pub fn build(b: *std.Build) void {
         .target = resolver_target,
         .root_source_file = .{ .path = "src/_init.zig" },
     });
-    elf.setLinkerScript(.{ .path = "src/linker.ld" });
+    elf.setLinkerScript(.{ .path = "linker.ld" });
 
     const copy_elf = b.addInstallArtifact(elf, .{});
     const bin = b.addObjCopy(elf.getEmittedBin(), .{ .format = .bin });
