@@ -175,9 +175,21 @@ const RCC = struct {
     const HSEMode = enum { Crystal };
 
     pub fn enableHSE(self: *const RCC, mode: HSEMode, fq: u32) void {
-        _ = self; // autofix
-        _ = mode; // autofix
         hse_fq_hz = fq;
+
+        switch (mode) {
+            .Crystal => {
+                const cr = self.getReg(.CR);
+                const hseon: Field = .{ .reg = cr, .shift = 16, .width = 1 };
+                const hserdy: Field = .{ .reg = cr, .rw = .ReadOnly, .shift = 17, .width = 1 };
+                const hsebyp: Field = .{ .reg = cr, .shift = 18, .width = 1 };
+                while (hserdy.isAsserted()) {}
+                hsebyp.set(0);
+                hseon.set(1);
+                hseon.set(1);
+                while (hserdy.isCleared()) {}
+            },
+        }
     }
 
     fn enablePeriphery(self: *const RCC, periph_switch: PeripherySwitch) void {
