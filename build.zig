@@ -18,6 +18,13 @@ pub fn build(b: *std.Build) void {
         .root_source_file = .{ .path = "src/_init.zig" },
         .optimize = .ReleaseSafe,
     });
+    const flash_init = b.addObject(.{
+        .target = resolver_target,
+        .name = "flash_init",
+        .root_source_file = .{ .path = "src/flash_init.zig" },
+        .optimize = .ReleaseSafe,
+    });
+    elf.addObject(flash_init);
     elf.setLinkerScript(.{ .path = "linker.ld" });
 
     const copy_elf = b.addInstallArtifact(elf, .{});

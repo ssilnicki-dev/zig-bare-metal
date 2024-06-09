@@ -10,12 +10,14 @@ export fn _start() void {
         :
         : [sp_value] "r" (&stack_bottom_addr),
     );
+    flash_init();
     sysram_init();
     main.main();
     unreachable;
 }
 
 extern fn sysram_init() void;
+extern fn flash_init() void;
 extern fn stack_bottom_addr() void;
 export const isr_vector linksection(".isr_vector") = [_]?*const fn () callconv(.C) void{
     stack_bottom_addr,

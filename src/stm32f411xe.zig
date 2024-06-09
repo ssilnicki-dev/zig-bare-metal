@@ -10,6 +10,7 @@ const bus: struct {
     ahb1: struct {
         const base: BusType = 0x40020000;
         rcc: RCC = .{ .port = 0x3800 + base },
+        flash: FLASH = .{ .port = 0x3C00 + base },
         gpioa: GPIO = .{ .port = 0x0000 + base, .rcc_switch = .{ .en_reg = .AHB1ENR, .shift = 0 } },
         gpiob: GPIO = .{ .port = 0x0400 + base, .rcc_switch = .{ .en_reg = .AHB1ENR, .shift = 1 } },
         gpioc: GPIO = .{ .port = 0x0800 + base, .rcc_switch = .{ .en_reg = .AHB1ENR, .shift = 2 } },
@@ -27,6 +28,7 @@ pub const gpioe = bus.ahb1.gpioe;
 pub const gpioh = bus.ahb1.gpioh;
 pub const rcc = bus.ahb1.rcc;
 pub const scb = bus.scb;
+pub const flash = bus.ahb1.flash;
 
 const Field = struct {
     pub const RwType = enum {
@@ -95,6 +97,30 @@ const Register = struct {
             if (bit != 0)
                 return @truncate(bit - 1);
         }
+    }
+};
+
+const FLASH = struct {
+    port: BusType,
+    fn getReg(self: *const FLASH, reg: Reg) BusType {
+        return self.port + @intFromEnum(reg);
+    }
+    const Reg = enum(BusType) {
+        ACR = 0x00, // Flash access control register
+        KEYR = 0x04, // Flash key register
+        OPTKEYR = 0x08, // Flash option key register
+        SR = 0x0C, // Flash status register
+        CR = 0x10, // Flash control register
+        OPTCR = 0x14, // Flash option control register
+    };
+    pub inline fn enableInstructionCache(self: *const FLASH) void {
+        (Field{ .reg = self.getReg(.ACR), .shift = 9, .width = 1 }).set(1);
+    }
+    pub inline fn enableDataCache(self: *const FLASH) void {
+        (Field{ .reg = self.getReg(.ACR), .shift = 10, .width = 1 }).set(1);
+    }
+    pub inline fn enablePrefetchBuffer(self: *const FLASH) void {
+        (Field{ .reg = self.getReg(.ACR), .shift = 8, .width = 1 }).set(1);
     }
 };
 

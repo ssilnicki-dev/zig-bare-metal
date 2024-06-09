@@ -65,3 +65,4 @@ PROVIDE(fpu_irq = null_handler);
 PROVIDE(spi4_irq = null_handler);
 PROVIDE(spi5_irq = null_handler);
 PROVIDE(sysram_init = null_handler);
+PROVIDE(flash_init = null_handler);
