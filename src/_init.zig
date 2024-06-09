@@ -6,17 +6,20 @@ export fn blocking_handler() void {
 export fn null_handler() void {}
 
 export fn _start() void {
+    asm volatile ("mov sp, %[sp_value]"
+        :
+        : [sp_value] "r" (&stack_bottom_addr),
+    );
+    sysram_init();
     main.main();
-}
-export fn reset_handler() void {
-    _start();
     unreachable;
 }
 
+extern fn sysram_init() void;
 extern fn stack_bottom_addr() void;
 export const isr_vector linksection(".isr_vector") = [_]?*const fn () callconv(.C) void{
     stack_bottom_addr,
-    reset_handler,
+    _start,
     nmi_handler,
     hard_fault_handler,
     mem_manage_fault_handler,

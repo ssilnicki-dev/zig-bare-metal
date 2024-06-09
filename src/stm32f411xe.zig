@@ -6,6 +6,7 @@ const hsi_fq_hz: u32 = 16000000;
 var hse_fq_hz: u32 = undefined;
 
 const bus: struct {
+    scb: SCB = .{ .port = 0xE000E000 },
     ahb1: struct {
         const base: BusType = 0x40020000;
         rcc: RCC = .{ .port = 0x3800 + base },
@@ -25,6 +26,7 @@ pub const gpiod = bus.ahb1.gpiod;
 pub const gpioe = bus.ahb1.gpioe;
 pub const gpioh = bus.ahb1.gpioh;
 pub const rcc = bus.ahb1.rcc;
+pub const scb = bus.scb;
 
 const Field = struct {
     pub const RwType = enum {
@@ -93,6 +95,34 @@ const Register = struct {
             if (bit != 0)
                 return @truncate(bit - 1);
         }
+    }
+};
+
+const SCB = struct {
+    port: BusType,
+    fn getReg(self: *const SCB, reg: Reg) BusType {
+        return self.port + @intFromEnum(reg);
+    }
+    const Reg = enum(BusType) {
+        ACTLR = 0x08, // Auxiliary control register
+        CPUID = 0xD00, // CPUID base register
+        ICSR = 0xD04, // Interrupt control and state register
+        VTOR = 0xD08, // Vector table offset register
+        AIRCR = 0xD0C, // Application interrupt and reset control register
+        SCR = 0xD10, // System control register
+        CCR = 0xD14, // Configuration and control register
+        SHPR1 = 0xD18, // System handler priority register
+        SHPR2 = 0xD1C, // System handler priority register
+        SHPR3 = 0xD20, // System handler priority register
+        SHCSR = 0xD24, // System handler control and state register
+        CFSR_MMSR_BFSR_UFSR = 0xD28, // Configurable fault status register
+        HFSR = 0xD2C, // Hard fault status register
+        MMAR = 0xD34, // Memory management fault address register
+        BFAR = 0xD38, // Bus fault address register
+        AFSR = 0xD3C, // Auxiliary fault status register
+    };
+    pub fn setSramVtor(self: *const SCB) void {
+        (Field{ .reg = self.getReg(.VTOR), .width = 1, .shift = 29 }).set(1);
     }
 };
 

@@ -1,4 +1,3 @@
-PROVIDE(reset_handler = null_handler);
 PROVIDE(nmi_handler = null_handler);
 PROVIDE(hard_fault_handler = blocking_handler);
 PROVIDE(mem_manage_fault_handler = blocking_handler);
@@ -65,3 +64,4 @@ PROVIDE(i2c3_er_irq = null_handler);
 PROVIDE(fpu_irq = null_handler);
 PROVIDE(spi4_irq = null_handler);
 PROVIDE(spi5_irq = null_handler);
+PROVIDE(sysram_init = null_handler);

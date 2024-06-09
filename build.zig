@@ -16,6 +16,7 @@ pub fn build(b: *std.Build) void {
         .name = "stm32f411.elf",
         .target = resolver_target,
         .root_source_file = .{ .path = "src/_init.zig" },
+        .optimize = .ReleaseSafe,
     });
     elf.setLinkerScript(.{ .path = "linker.ld" });
 
@@ -26,5 +27,24 @@ pub fn build(b: *std.Build) void {
     bin.step.dependOn(&copy_elf.step);
     copy_bin.step.dependOn(&bin.step);
 
-    b.default_step.dependOn(&copy_bin.step);
+    const sysram_elf = b.addExecutable(.{
+        .name = "sysram-elf",
+        .target = resolver_target,
+        .root_source_file = .{ .path = "src/_init.zig" },
+        .optimize = .Debug,
+    });
+
+    const sysram_init = b.addObject(.{
+        .target = resolver_target,
+        .name = "sysram_init",
+        .root_source_file = .{ .path = "src/sysram_init.zig" },
+        .optimize = .Debug,
+    });
+    sysram_elf.addObject(sysram_init);
+    sysram_elf.setLinkerScript(.{ .path = "sysram.ld" });
+
+    const copy_sram_elf = b.addInstallArtifact(sysram_elf, .{});
+    copy_sram_elf.step.dependOn(&copy_bin.step);
+
+    b.default_step.dependOn(&copy_sram_elf.step);
 }
