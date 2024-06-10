@@ -18,6 +18,13 @@ const bus: struct {
         gpioe: GPIO = .{ .port = 0x1000 + base, .rcc_switch = .{ .en_reg = .AHB1ENR, .shift = 4 } },
         gpioh: GPIO = .{ .port = 0x1C00 + base, .rcc_switch = .{ .en_reg = .AHB1ENR, .shift = 7 } },
     } = .{},
+    mux: struct {
+        main_pll: MUXER = .{ .src = .{ .reg = .PLLCFGR, .shift = 22 }, .values = enum(u1) { HSI = 0, HSE = 1 } },
+        sys_clock: MUXER = .{ .src = .{ .reg = .CFGR, .shift = 0, .width = 2 }, .values = enum(u2) { HSI = 0, HSE = 1, PLL = 2 } },
+    } = .{},
+    pll: struct {
+        main: PLL = .{ .cfg = .PLLCFGR, .en_bit = 24, .rdy_bit = 25 },
+    } = .{},
 } = .{};
 
 pub const gpioa = bus.ahb1.gpioa;
@@ -29,6 +36,8 @@ pub const gpioh = bus.ahb1.gpioh;
 pub const rcc = bus.ahb1.rcc;
 pub const scb = bus.scb;
 pub const flash = bus.ahb1.flash;
+pub const mux = bus.mux;
+pub const pll = bus.pll;
 
 const Field = struct {
     pub const RwType = enum {
@@ -100,6 +109,48 @@ const Register = struct {
     }
 };
 
+const PLL = struct {
+    cfg: RCC.Reg,
+    en_bit: FieldShiftType,
+    rdy_bit: FieldShiftType,
+    pub fn configure(self: *const PLL, comptime m: u6, comptime n: u9, comptime p: ?u4, comptime q: ?u4, comptime r: ?u3) void {
+        comptime if (m < 2)
+            @compileError("M divider value must be in range [2;63]");
+        comptime if (n < 50 or n > 432)
+            @compileError("N multiplier value must be in range [50;432]");
+        comptime if (q != null and q.? < 2)
+            @compileError("Q output divider value must be in range [2;15]");
+        comptime if (r != null and r.? < 2)
+            @compileError("R output divider value must be in range [2;7]");
+        comptime if (p != null) {
+            if ((p.? & 0x1) == 0x1)
+                @compileError("P output divider value must be even");
+            if (p.? < 2 or p.? > 8)
+                @compileError("P output divider value must be in range[2;8]");
+        };
+
+        const en = Field{ .reg = rcc.getReg(.CR), .width = 1, .shift = self.en_bit };
+
+        if (en.isAsserted())
+            return;
+
+        const cfg = rcc.getReg(self.cfg);
+        (Field{ .reg = cfg, .shift = 0, .width = @bitSizeOf(@TypeOf(m)) }).set(m);
+        (Field{ .reg = cfg, .shift = 6, .width = @bitSizeOf(@TypeOf(n)) }).set(n);
+        if (p != null)
+            (Field{ .reg = cfg, .shift = 16, .width = @bitSizeOf(@TypeOf(p.?)) }).set(p.? / 2 - 1);
+        if (q != null)
+            (Field{ .reg = cfg, .shift = 24, .width = @bitSizeOf(@TypeOf(q.?)) }).set(q.?);
+        if (r != null)
+            (Field{ .reg = cfg, .shift = 28, .width = @bitSizeOf(@TypeOf(r.?)) }).set(r.?);
+        const rdy = Field{ .reg = rcc.getReg(.CR), .width = 1, .shift = self.rdy_bit };
+
+        en.set(1);
+
+        while (rdy.isCleared()) {}
+    }
+};
+
 const FLASH = struct {
     port: BusType,
     fn getReg(self: *const FLASH, reg: Reg) BusType {
@@ -152,21 +203,25 @@ const SCB = struct {
     }
 };
 
+const MUXER = struct {
+    src: FieldDesc,
+    values: @TypeOf(enum {}),
+    const FieldDesc = struct {
+        reg: RCC.Reg,
+        shift: FieldShiftType,
+        width: FieldWidthType = 1,
+    };
+    pub fn set(self: *const MUXER, value: self.values) void {
+        (Field{ .reg = rcc.getReg(self.src.reg), .shift = self.src.shift, .width = self.src.width }).set(@intFromEnum(value));
+    }
+};
+
 const RCC = struct {
     port: BusType,
     fn getReg(self: *const RCC, reg: Reg) BusType {
         return self.port + @intFromEnum(reg);
     }
     const ClockSource = enum { HSI, HSE };
-    const ClockMuxer = struct {
-        src: FieldDesc,
-        rdy: ?FieldDesc = null,
-        const FieldDesc = struct {
-            reg: Reg,
-            shift: FieldShiftType,
-            width: FieldWidthType = 1,
-        };
-    };
     const PeripherySwitch = struct {
         en_reg: Reg,
         shift: FieldShiftType,
