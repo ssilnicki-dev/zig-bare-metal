@@ -25,7 +25,44 @@ const bus: struct {
     pll: struct {
         main: PLL = .{ .cfg = .PLLCFGR, .en_bit = 24, .rdy_bit = 25 },
     } = .{},
+    presc: struct {
+        ahb: PRESCALER = .{ .cfg = .CFGR, .value_type = .MostBit, .width = 4, .shift = 4 },
+        apb1: PRESCALER = .{ .cfg = .CFGR, .value_type = .MostBit, .width = 3, .shift = 10 },
+        apb2: PRESCALER = .{ .cfg = .CFGR, .value_type = .MostBit, .width = 3, .shift = 13 },
+    } = .{},
 } = .{};
+
+const PRESCALER = struct {
+    cfg: RCC.Reg,
+    value_type: enum { Direct, MostBit },
+    width: FieldWidthType,
+    shift: FieldShiftType,
+
+    fn getMaxValue(self: *const PRESCALER) BusType {
+        return comptime switch (self.value_type) {
+            .Direct => (@as(BusType, 1) << self.width) / 2 + 1,
+            .MostBit => @as(BusType, 1) << ((@as(BusType, 1) << self.width) / 2 + 1),
+        };
+    }
+    fn validate(self: *const PRESCALER, comptime value: BusType) void {
+        if (value > self.getMaxValue())
+            @compileLog("Error: PRESCALER value overflow.", value, " > ", self.getMaxValue());
+        if (value == 0)
+            @compileLog("Error: PRESCALER value must be > 0.", value);
+        if (self.value_type == .MostBit and @bitSizeOf(@TypeOf(value)) - @clz(value) - 1 != @ctz(value))
+            @compileLog("Error: PRESCALER value is unalligned", value);
+        if (value == 32)
+            @compileLog("Error: PRESCALER value 32 is not supported for some reson...", value);
+    }
+    pub fn set(comptime self: *const PRESCALER, comptime value: BusType) void {
+        comptime self.validate(value);
+        const field: Field = Field{ .reg = rcc.getReg(self.cfg), .width = self.width, .shift = self.shift };
+        switch (self.value_type) {
+            .Direct => field.set(2 + value),
+            .MostBit => field.set(@ctz(value) + 7 - @as(BusType, 1) * @min(value / 64, 1)),
+        }
+    }
+};
 
 pub const gpioa = bus.ahb1.gpioa;
 pub const gpiob = bus.ahb1.gpiob;
@@ -38,6 +75,7 @@ pub const scb = bus.scb;
 pub const flash = bus.ahb1.flash;
 pub const mux = bus.mux;
 pub const pll = bus.pll;
+pub const presc = bus.presc;
 
 const Field = struct {
     pub const RwType = enum {
