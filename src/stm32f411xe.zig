@@ -5,7 +5,7 @@ const FieldWidthType = FieldShiftType;
 const hsi_fq_hz: u32 = 16000000;
 var hse_fq_hz: u32 = undefined;
 
-const bus: struct {
+const hal: struct {
     core: struct {
         dwt: DWT = .{ .port = 0xE0001000 },
         scb: SCB = .{ .port = 0xE000E000 },
@@ -67,18 +67,18 @@ const PRESCALER = struct {
     }
 };
 
-pub const gpioa = bus.ahb1.gpioa;
-pub const gpiob = bus.ahb1.gpiob;
-pub const gpioc = bus.ahb1.gpioc;
-pub const gpiod = bus.ahb1.gpiod;
-pub const gpioe = bus.ahb1.gpioe;
-pub const gpioh = bus.ahb1.gpioh;
-pub const rcc = bus.ahb1.rcc;
-pub const scb = bus.core.scb;
-pub const flash = bus.ahb1.flash;
-pub const mux = bus.mux;
-pub const pll = bus.pll;
-pub const presc = bus.presc;
+pub const gpioa = hal.ahb1.gpioa;
+pub const gpiob = hal.ahb1.gpiob;
+pub const gpioc = hal.ahb1.gpioc;
+pub const gpiod = hal.ahb1.gpiod;
+pub const gpioe = hal.ahb1.gpioe;
+pub const gpioh = hal.ahb1.gpioh;
+pub const rcc = hal.ahb1.rcc;
+pub const scb = hal.core.scb;
+pub const flash = hal.ahb1.flash;
+pub const mux = hal.mux;
+pub const pll = hal.pll;
+pub const presc = hal.presc;
 
 pub fn udelay(us: BusType, sys_clock_hz: BusType) void {
     const cyccnt: *volatile BusType = @ptrFromInt(0xE0001004); // see DWT
@@ -88,14 +88,14 @@ pub fn udelay(us: BusType, sys_clock_hz: BusType) void {
     while (wasted_cycles > cyccnt.*) {}
 }
 pub fn enableCycleCounter() void {
-    bus.core.dwt.enableCycleCounter();
+    hal.core.dwt.enableCycleCounter();
 }
 
 pub fn getSysClockHz() BusType {
-    const sysclock_src = bus.mux.sys_clock.values;
-    const main_pll_src = bus.mux.main_pll.values;
+    const sysclock_src = hal.mux.sys_clock.values;
+    const main_pll_src = hal.mux.main_pll.values;
 
-    switch (bus.mux.sys_clock.get()) {
+    switch (hal.mux.sys_clock.get()) {
         sysclock_src.HSE => {
             return hse_fq_hz;
         },
@@ -103,12 +103,12 @@ pub fn getSysClockHz() BusType {
             return hsi_fq_hz;
         },
         sysclock_src.PLL => {
-            const src_fq_hz = switch (bus.mux.main_pll.get()) {
+            const src_fq_hz = switch (hal.mux.main_pll.get()) {
                 main_pll_src.HSE => hse_fq_hz,
                 main_pll_src.HSI => hsi_fq_hz,
             };
 
-            return bus.pll.main.getOutputHz(.P, src_fq_hz);
+            return hal.pll.main.getOutputHz(.P, src_fq_hz);
         },
     }
 
