@@ -77,6 +77,29 @@ pub const mux = bus.mux;
 pub const pll = bus.pll;
 pub const presc = bus.presc;
 
+pub fn getSysClockHz() BusType {
+    const sysclock_src = bus.mux.sys_clock.values;
+    const main_pll_src = bus.mux.main_pll.values;
+
+    switch (bus.mux.sys_clock.get()) {
+        sysclock_src.HSE => {
+            return hse_fq_hz;
+        },
+        sysclock_src.HSI => {
+            return hsi_fq_hz;
+        },
+        sysclock_src.PLL => {
+            const src_fq_hz = switch (bus.mux.main_pll.get()) {
+                main_pll_src.HSE => hse_fq_hz,
+                main_pll_src.HSI => hsi_fq_hz,
+            };
+
+            return bus.pll.main.getOutputHz(.P, src_fq_hz);
+        },
+    }
+
+    return 0;
+}
 const Field = struct {
     pub const RwType = enum {
         ReadOnly,
@@ -151,6 +174,24 @@ const PLL = struct {
     cfg: RCC.Reg,
     en_bit: FieldShiftType,
     rdy_bit: FieldShiftType,
+
+    const Output = enum { P, Q, R };
+
+    fn getOutputHz(self: *const PLL, out: Output, input_hz: BusType) BusType {
+        const rdy = Field{ .reg = rcc.getReg(.CR), .width = 1, .shift = self.rdy_bit };
+        if (rdy.isCleared())
+            return 0;
+        const cfg = rcc.getReg(self.cfg);
+        const m = (Field{ .reg = cfg, .shift = 0, .width = 6 }).get();
+        const n = (Field{ .reg = cfg, .shift = 6, .width = 9 }).get();
+
+        return input_hz / m * n / switch (out) {
+            .P => ((Field{ .reg = cfg, .shift = 16, .width = 4 }).get() + 1) * 2,
+            .Q => (Field{ .reg = cfg, .shift = 24, .width = 4 }).get(),
+            .R => (Field{ .reg = cfg, .shift = 28, .width = 3 }).get(),
+        };
+    }
+
     pub fn configure(self: *const PLL, comptime m: u6, comptime n: u9, comptime p: ?u4, comptime q: ?u4, comptime r: ?u3) void {
         comptime if (m < 2)
             @compileError("M divider value must be in range [2;63]");
@@ -173,14 +214,14 @@ const PLL = struct {
             return;
 
         const cfg = rcc.getReg(self.cfg);
-        (Field{ .reg = cfg, .shift = 0, .width = @bitSizeOf(@TypeOf(m)) }).set(m);
-        (Field{ .reg = cfg, .shift = 6, .width = @bitSizeOf(@TypeOf(n)) }).set(n);
+        (Field{ .reg = cfg, .shift = 0, .width = 6 }).set(m);
+        (Field{ .reg = cfg, .shift = 6, .width = 9 }).set(n);
         if (p != null)
-            (Field{ .reg = cfg, .shift = 16, .width = @bitSizeOf(@TypeOf(p.?)) }).set(p.? / 2 - 1);
+            (Field{ .reg = cfg, .shift = 16, .width = 4 }).set(p.? / 2 - 1);
         if (q != null)
-            (Field{ .reg = cfg, .shift = 24, .width = @bitSizeOf(@TypeOf(q.?)) }).set(q.?);
+            (Field{ .reg = cfg, .shift = 24, .width = 4 }).set(q.?);
         if (r != null)
-            (Field{ .reg = cfg, .shift = 28, .width = @bitSizeOf(@TypeOf(r.?)) }).set(r.?);
+            (Field{ .reg = cfg, .shift = 28, .width = 3 }).set(r.?);
         const rdy = Field{ .reg = rcc.getReg(.CR), .width = 1, .shift = self.rdy_bit };
 
         en.set(1);
@@ -251,6 +292,10 @@ const MUXER = struct {
     };
     pub fn set(self: *const MUXER, value: self.values) void {
         (Field{ .reg = rcc.getReg(self.src.reg), .shift = self.src.shift, .width = self.src.width }).set(@intFromEnum(value));
+    }
+    fn get(self: *const MUXER) self.values {
+        const field: Field = Field{ .reg = rcc.getReg(self.src.reg), .shift = self.src.shift, .width = self.src.width };
+        return @enumFromInt(field.get());
     }
 };
 
