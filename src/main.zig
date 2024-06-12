@@ -8,6 +8,9 @@ pub fn main() void {
     bus.presc.ahb.set(1);
     bus.presc.apb1.set(1);
     bus.presc.apb2.set(2);
+    bus.enableCycleCounter();
+    const sys_clock_hz = bus.getSysClockHz();
+    bus.udelay(100_000, sys_clock_hz);
 
     while (true) {}
 }

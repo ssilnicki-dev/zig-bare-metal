@@ -6,7 +6,10 @@ const hsi_fq_hz: u32 = 16000000;
 var hse_fq_hz: u32 = undefined;
 
 const bus: struct {
-    scb: SCB = .{ .port = 0xE000E000 },
+    core: struct {
+        dwt: DWT = .{ .port = 0xE0001000 },
+        scb: SCB = .{ .port = 0xE000E000 },
+    } = .{},
     ahb1: struct {
         const base: BusType = 0x40020000;
         rcc: RCC = .{ .port = 0x3800 + base },
@@ -71,11 +74,22 @@ pub const gpiod = bus.ahb1.gpiod;
 pub const gpioe = bus.ahb1.gpioe;
 pub const gpioh = bus.ahb1.gpioh;
 pub const rcc = bus.ahb1.rcc;
-pub const scb = bus.scb;
+pub const scb = bus.core.scb;
 pub const flash = bus.ahb1.flash;
 pub const mux = bus.mux;
 pub const pll = bus.pll;
 pub const presc = bus.presc;
+
+pub fn udelay(us: BusType, sys_clock_hz: BusType) void {
+    const cyccnt: *volatile BusType = @ptrFromInt(0xE0001004); // see DWT
+    cyccnt.* = 0;
+
+    const wasted_cycles = sys_clock_hz / 1_000_000 * us;
+    while (wasted_cycles > cyccnt.*) {}
+}
+pub fn enableCycleCounter() void {
+    bus.core.dwt.enableCycleCounter();
+}
 
 pub fn getSysClockHz() BusType {
     const sysclock_src = bus.mux.sys_clock.values;
@@ -254,6 +268,24 @@ const FLASH = struct {
     }
 };
 
+const DWT = struct {
+    port: BusType,
+    fn getReg(self: *const DWT, reg: Reg) BusType {
+        return self.port + @intFromEnum(reg);
+    }
+    fn enableCycleCounter(self: *const DWT) void {
+        scb.enableTrace();
+        (Register{ .addr = self.getReg(.LAR) }).set(0xC5ACCE55);
+        (Register{ .addr = self.getReg(.CYCCNT) }).reset();
+        (Field{ .reg = self.getReg(.CTRL), .width = 1, .shift = 0 }).set(1);
+    }
+    const Reg = enum(BusType) {
+        CTRL = 0x000, //  Control Register
+        CYCCNT = 0x004, //  Cycle Count Register
+        LAR = 0xFB0, // undocumented write only Lock Access Register
+    };
+};
+
 const SCB = struct {
     port: BusType,
     fn getReg(self: *const SCB, reg: Reg) BusType {
@@ -276,9 +308,19 @@ const SCB = struct {
         MMAR = 0xD34, // Memory management fault address register
         BFAR = 0xD38, // Bus fault address register
         AFSR = 0xD3C, // Auxiliary fault status register
+        DHCSR = 0xDF0, //  Debug Halting Control and Status Register */
+        DCRSR = 0xDF4, //  Debug Core Register Selector Register */
+        DCRDR = 0xDF8, //  Debug Core Register Data Register */
+        DEMCR = 0xDFC, //  Debug Exception and Monitor Control Register */
     };
     pub fn setSramVtor(self: *const SCB) void {
         (Field{ .reg = self.getReg(.VTOR), .width = 1, .shift = 29 }).set(1);
+    }
+    inline fn enableTrace(self: *const SCB) void {
+        (Field{ .reg = self.getReg(.DEMCR), .width = 1, .shift = 24 }).set(1);
+    }
+    fn disableTrace(self: *const SCB) void {
+        (Field{ .reg = self.getReg(.DEMCR), .width = 1, .shift = 24 }).reset();
     }
 };
 
