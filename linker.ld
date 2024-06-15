@@ -1,4 +1,4 @@
-ENTRY(_start)
+ENTRY(reset_handler)
 
 MEMORY
 {
@@ -8,6 +8,7 @@ MEMORY
 
 EXTERN (isr_vector)
 EXTERN (stack_bottom_addr);
+stack_size = 0x1000;
 
 SECTIONS
 {
@@ -21,15 +22,20 @@ SECTIONS
 
   .rodata : ALIGN(4) {
       *(.rodata)
+      *(.rodata.*)
   } >FLASH
 
   .bss : ALIGN(4) {
       *(COMMON)
       *(.bss)
   } >RAM
+
+  .stack : ALIGN(4) {
+       . = . + stack_size;
+  } >RAM
+
   /DISCARD/ : { *(.data) }
 }
 
 PROVIDE(stack_bottom_addr = ORIGIN(RAM) + LENGTH(RAM));
-stack_size = 0x1000;
 INCLUDE provide.ld
