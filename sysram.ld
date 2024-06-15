@@ -15,6 +15,10 @@ SECTIONS
     KEEP(*(.isr_vector))
   } >RAM
 
+  .reset_handler ALIGN(4): {
+      . = 0x200001B0;
+  } > RAM
+
   .text : ALIGN(4) {
       *(.text)
   } >RAM
