@@ -13,19 +13,20 @@ export fn reset_handler() linksection(".reset_handler") callconv(.Naked) void {
     asm volatile ("bl _start");
 }
 
-export fn _start() callconv(.C) void {
+export fn _start() void {
     flash_init();
     sysram_init();
     main.main();
-    unreachable;
+    asm volatile ("nop");
+    asm volatile ("b .-2");
 }
 
 extern fn sysram_init() void;
 extern fn flash_init() void;
 extern const stack_bottom_addr: u32;
 export const isr_vector linksection(".isr_vector") = [_]?*const fn () callconv(.C) void{
-    @as(*const fn () callconv(.C) void, @ptrCast(&stack_bottom_addr)),
-    @as(*const fn () callconv(.C) void, @ptrCast(&reset_handler)),
+    @ptrCast(&stack_bottom_addr),
+    @ptrCast(&reset_handler),
     nmi_handler,
     hard_fault_handler,
     mem_manage_fault_handler,
