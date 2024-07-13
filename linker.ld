@@ -25,12 +25,12 @@ SECTIONS
       *(.rodata.*)
   } >FLASH
 
-  .bss : ALIGN(4) {
+  .bss (NOLOAD) : ALIGN(4) {
       *(COMMON)
       *(.bss)
   } >RAM
 
-  .stack : ALIGN(4) {
+  .stack (NOLOAD) : ALIGN(4) {
        . = . + stack_size;
   } >RAM
 
