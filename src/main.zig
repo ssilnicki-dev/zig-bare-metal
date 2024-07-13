@@ -6,8 +6,8 @@ pub fn main() void {
     hal.pll.main.configure(4, 192, 4, 8, null);
     hal.mux.sys_clock.set(hal.mux.sys_clock.values.PLL);
     hal.presc.ahb.set(1);
-    hal.presc.apb1.set(1);
-    hal.presc.apb2.set(2);
+    hal.presc.apb1.set(2);
+    hal.presc.apb2.set(1);
     hal.enableCycleCounter();
     const sys_clock_hz = hal.getSysClockHz();
     hal.udelay(100_000, sys_clock_hz);
