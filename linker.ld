@@ -16,6 +16,10 @@ SECTIONS
     KEEP(*(.isr_vector))
   } >FLASH
 
+  .reset_handler ALIGN(4): {
+      . = 0x80001B0;
+  } > FLASH
+
   .text : ALIGN(4) {
       *(.text)
   } >FLASH

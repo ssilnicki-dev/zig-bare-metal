@@ -41,7 +41,9 @@
       ]
     },
     {
-      "name": "sysram-elf (GDB Debug)",
+      "name": "stm32f411.elf",
+      "type": "cppdbg",
+      "request": "launch",
       "logging": {
         "moduleLoad": true,
         "trace": true,
@@ -51,32 +53,26 @@
       },
       "filterStderr": true,
       "filterStdout": true,
-      "type": "cppdbg",
-      "request": "launch",
-      "program": "${workspaceFolder}/zig-out/bin/sysram-elf",
-      "args": [],
-      "stopAtEntry": false,
-      "stopAtConnect": false,
+      "program": "${workspaceFolder}/zig-out/bin/stm32f411.elf",
       "cwd": "${workspaceFolder}",
-      "environment": [{ "name": "SOME_VAR", "value": "some_value" }],
       "externalConsole": false,
-      "MIMode": "gdb",
-      "miDebuggerPath": "arm-ostl-linux-gnueabi-gdb",
+      "MIMode": "lldb",
+      "miDebuggerPath": "lldb-mi",
       "launchCompleteCommand": "exec-continue",
       "debugServerPath": "openocd",
-      "debugServerArgs": "-f interface/stlink.cfg  -f target/stm32f4x.cfg -c \"init ; reset halt\"",
-      "serverStarted": "Listening on port 3333 for gdb connections",
+      "debugServerArgs": "-f interface/stlink.cfg  -f target/stm32f4x.cfg -c \"init ; reset halt ; program ${workspaceFolder}/zig-out/bin/stm32f411.elf verify reset ; init ; reset halt\"",
+      "serverStarted": "Verified OK",
       "serverLaunchTimeout": 3000,
       "targetArchitecture": "arm",
-      "setupCommands": [
+      "setupCommands_": [
         { "text": "-enable-pretty-printing", "ignoreFailures": false }
       ],
       "customLaunchSetupCommands": [
-        { "text": "target extended-remote :3333" },
         {
-          "text": "add-symbol-file  ${workspaceFolder}/zig-out/bin/sysram-elf"
+          "text": "file ${workspaceFolder}/zig-out/bin/stm32f411.elf"
         },
-        { "text": "load  ${workspaceFolder}/zig-out/bin/sysram-elf" }
+        { "text": "gdb-remote localhost:3333" },
+        { "text": "j *0x80001B0" }
       ]
     }
   ]
