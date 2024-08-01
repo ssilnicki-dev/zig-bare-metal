@@ -20,6 +20,9 @@ SECTIONS
   } > RAM
 
   .text : ALIGN(4) {
+      KEEP(*(.text.__aeabi_memset))
+      KEEP(*(.text.__aeabi_memcpy))
+      KEEP(*(.text.memset))
       *(.text)
   } >RAM
 
