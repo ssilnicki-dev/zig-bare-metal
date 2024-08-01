@@ -17,7 +17,7 @@ SECTIONS
   } >FLASH
 
   .reset_handler ALIGN(4): {
-      . = 0x80001B0;
+      . = 0x8000F00;
   } > FLASH
 
   .text : ALIGN(4) {
@@ -32,17 +32,30 @@ SECTIONS
       *(.rodata.*)
   } >FLASH
 
-  .bss (NOLOAD) : ALIGN(4) {
+  .data : ALIGN(4) {
+      _data = .;
+      *(.data*)
+      . = ALIGN(4);
+      _edata = .;
+  } >RAM AT >FLASH
+
+  .bss : ALIGN(4) {
+      _bss = .;
       *(COMMON)
       *(.bss)
+      . = ALIGN(4);
+      _ebss = .;
   } >RAM
 
   .stack (NOLOAD) : ALIGN(4) {
        . = . + stack_size;
   } >RAM
 
-  /DISCARD/ : { *(.data) }
+   /DISCARD/ : {
+      *(.text.*)
+   }
 }
 
+PROVIDE(_data_loadaddr = LOADADDR(.data));
 PROVIDE(stack_bottom_addr = ORIGIN(RAM) + LENGTH(RAM));
 INCLUDE provide.ld

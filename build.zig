@@ -36,7 +36,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .name = "flash_init",
         .root_source_file = .{ .src_path = .{ .sub_path = "src/flash_init.zig", .owner = b } },
-        .optimize = .ReleaseSafe,
+        .optimize = optimize,
     });
     elf.addObject(flash_init);
     elf.setLinkerScript(.{ .src_path = .{ .sub_path = "linker.ld", .owner = b } });

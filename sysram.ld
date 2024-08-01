@@ -16,7 +16,7 @@ SECTIONS
   } >RAM
 
   .reset_handler ALIGN(4): {
-      . = 0x200001B0;
+      . = 0x20000F00;
   } > RAM
 
   .text : ALIGN(4) {
@@ -31,17 +31,31 @@ SECTIONS
       *(.rodata.*)
   } >RAM
 
+  .data : ALIGN(4) {
+      _data = .;
+      *(.data*)
+      . = ALIGN(4);
+      _edata = .;
+  } >RAM AT >RAM
+
   .bss : ALIGN(4) {
+      _bss = .;
       *(COMMON)
       *(.bss)
+      . = ALIGN(4);
+      _ebss = .;
   } >RAM
 
   .stack  : ALIGN(4) {
        . = . + stack_size;
    } >RAM
 
-  /DISCARD/ : { *(.data) }
+   /DISCARD/ : {
+      *(.text.*)
+   }
+
 }
 
+PROVIDE(_data_loadaddr = LOADADDR(.data));
 PROVIDE(stack_bottom_addr = ORIGIN(RAM) + LENGTH(RAM));
 INCLUDE provide.ld

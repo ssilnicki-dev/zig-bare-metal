@@ -13,7 +13,25 @@ export fn reset_handler() linksection(".reset_handler") callconv(.Naked) void {
     asm volatile ("bl _start");
 }
 
+extern const _data_loadaddr: u32;
+extern var _data: u32;
+extern const _edata: u32;
+extern var _bss: u32;
+extern const _ebss: u32;
+
+export fn init_data() void {
+    const data_loadaddr = @as([*]const u8, @ptrCast(&_data_loadaddr));
+    var data = @as([*]u8, @ptrCast(&_data));
+    const data_size = @intFromPtr(&_edata) - @intFromPtr(&_data);
+    for (data_loadaddr, 0..data_size) |d, i| data[i] = d;
+
+    var bss = @as([*]u8, @ptrCast(&_bss));
+    const bss_size = @intFromPtr(&_ebss) - @intFromPtr(&_bss);
+    for (0..bss_size) |i| bss[i] = 0;
+}
+
 export fn _start() void {
+    init_data();
     flash_init();
     sysram_init();
     main.main();
