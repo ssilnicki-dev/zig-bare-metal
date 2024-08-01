@@ -2,7 +2,9 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "sysram-elf (LLDB Debug)",
+      "name": "OpenOCD + LLDB",
+      "type": "cppdbg",
+      "request": "launch",
       "logging": {
         "moduleLoad": true,
         "trace": true,
@@ -12,45 +14,32 @@
       },
       "filterStderr": true,
       "filterStdout": true,
-      "type": "cppdbg",
-      "request": "launch",
-      "program": "${workspaceFolder}/zig-out/bin/sysram-elf",
-      "args": [],
-      "stopAtEntry": false,
-      "stopAtConnect": false,
+      "program": "${workspaceFolder}/zig-out/bin/stm32f411.elf",
       "cwd": "${workspaceFolder}",
-      "environment": [{ "name": "SOME_VAR", "value": "some_value" }],
       "externalConsole": false,
       "MIMode": "lldb",
       "miDebuggerPath": "lldb-mi",
       "launchCompleteCommand": "exec-continue",
       "debugServerPath": "openocd",
-      "debugServerArgs": "-f interface/stlink.cfg  -f target/stm32f4x.cfg -c \"init ; reset halt ; load_image ${workspaceFolder}/zig-out/bin/sysram-elf\"",
+      "debugServerArgs": "-f interface/stlink.cfg  -f target/stm32f4x.cfg -c \"init ; reset halt\"",
       "serverStarted": "Listening on port 3333 for gdb connections",
-      "serverLaunchTimeout": 3000,
+      "serverLaunchTimeout": 300,
       "targetArchitecture": "arm",
       "setupCommands": [
         { "text": "-enable-pretty-printing", "ignoreFailures": false }
       ],
       "customLaunchSetupCommands": [
-        { "text": "file ${workspaceFolder}/zig-out/bin/sysram-elf" },
         {
-          "text": "gdb-remote localhost:3333"
+          "text": "file ${workspaceFolder}/zig-out/bin/stm32f411.elf"
         },
-        { "text": "j *0x20000F00" }
+        { "text": "gdb-remote 3333" },
+        { "text": "settings set target.require-hardware-breakpoint true" }
       ]
     },
     {
-      "name": "stm32f411.elf (LLDB)",
+      "name": "flash stm32f411.elf",
       "type": "cppdbg",
       "request": "launch",
-      "logging": {
-        "moduleLoad": true,
-        "trace": true,
-        "engineLogging": true,
-        "programOutput": true,
-        "exceptions": true
-      },
       "filterStderr": true,
       "filterStdout": true,
       "program": "${workspaceFolder}/zig-out/bin/stm32f411.elf",
@@ -58,58 +47,9 @@
       "externalConsole": false,
       "MIMode": "lldb",
       "miDebuggerPath": "lldb-mi",
-      "launchCompleteCommand": "exec-continue",
+      "launchCompleteCommand": "None",
       "debugServerPath": "openocd",
-      "debugServerArgs": "-f interface/stlink.cfg  -f target/stm32f4x.cfg -c \"init ; reset halt ; program ${workspaceFolder}/zig-out/bin/stm32f411.elf verify reset ; init ; reset halt\"",
-      "serverStarted": "Verified OK",
-      "serverLaunchTimeout": 6000,
-      "targetArchitecture": "arm",
-      "setupCommands_": [
-        { "text": "-enable-pretty-printing", "ignoreFailures": false }
-      ],
-      "customLaunchSetupCommands": [
-        {
-          "text": "file ${workspaceFolder}/zig-out/bin/stm32f411.elf"
-        },
-        { "text": "gdb-remote localhost:3333" },
-        { "text": "j *0x8000F00" }
-      ]
-    },
-    {
-      "name": "stm32f411.elf (GDB)",
-      "type": "cppdbg",
-      "request": "launch",
-      "logging": {
-        "moduleLoad": true,
-        "trace": true,
-        "engineLogging": true,
-        "programOutput": true,
-        "exceptions": true
-      },
-      "filterStderr": true,
-      "filterStdout": true,
-      "program": "${workspaceFolder}/zig-out/bin/stm32f411.elf",
-      "cwd": "${workspaceFolder}",
-      "externalConsole": false,
-      "stopAtEntry": true,
-      "stopAtConnect": true,
-      "MIMode": "gdb",
-      "miDebuggerPath": "arm-ostl-linux-gnueabi-gdb",
-      "launchCompleteCommand": "exec-continue",
-      "debugServerPath": "openocd",
-      "debugServerArgs": "-f interface/stlink.cfg  -f target/stm32f4x.cfg -c \"init ; reset halt\"",
-      "serverStarted": "Listening on port 3333 for gdb connections",
-      "serverLaunchTimeout": 5000,
-      "targetArchitecture": "arm",
-      "setupCommands_": [
-        { "text": "-enable-pretty-printing", "ignoreFailures": false }
-      ],
-      "customLaunchSetupCommands": [
-        {
-          "text": "file ${workspaceFolder}/zig-out/bin/stm32f411.elf"
-        },
-        { "text": "target extended-remote :3333" }
-      ]
+      "debugServerArgs": "-f interface/stlink.cfg  -f target/stm32f4x.cfg -c \"init ; reset halt ; program ${workspaceFolder}/zig-out/bin/stm32f411.elf verify reset ; exit \""
     }
   ]
 }

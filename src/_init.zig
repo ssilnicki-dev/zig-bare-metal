@@ -5,7 +5,7 @@ export fn blocking_handler() void {
 }
 export fn null_handler() void {}
 
-export fn reset_handler() linksection(".reset_handler") callconv(.Naked) void {
+export fn reset_handler() callconv(.Naked) void {
     asm volatile ("mov sp, %[sp_value]"
         :
         : [sp_value] "r" (&stack_bottom_addr),
@@ -33,13 +33,11 @@ export fn init_data() void {
 export fn _start() void {
     init_data();
     flash_init();
-    sysram_init();
     main.main();
     asm volatile ("nop");
     asm volatile ("b .-2");
 }
 
-extern fn sysram_init() void;
 extern fn flash_init() void;
 extern const stack_bottom_addr: u32;
 export const isr_vector linksection(".isr_vector") = [_]?*const fn () callconv(.C) void{

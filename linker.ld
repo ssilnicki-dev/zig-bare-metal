@@ -16,13 +16,12 @@ SECTIONS
     KEEP(*(.isr_vector))
   } >FLASH
 
-  .reset_handler ALIGN(4): {
-      . = 0x8000F00;
-  } > FLASH
-
   .text : ALIGN(4) {
       KEEP(*(.text.__aeabi_memset))
       KEEP(*(.text.__aeabi_memcpy))
+      KEEP(*(.text.__aeabi_memclr))
+      KEEP(*(.text.__aeabi_memcpy4))
+      KEEP(*(.text.__aeabi_memclr4))
       KEEP(*(.text.memset))
       *(.text)
   } >FLASH
