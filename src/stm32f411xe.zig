@@ -1,54 +1,16 @@
 const usbp = @import("usbp.zig");
+const platform = @import("platform32.zig");
+const SCS = @import("scs.zig").SCS;
 
-const BusType: type = u32;
-const FieldShiftType = u5;
-const FieldWidthType = FieldShiftType;
+const BusType = platform.BusType;
+const FieldShiftType = platform.FieldShiftType;
+const FieldWidthType = platform.FieldWidthType;
+const Field = platform.Field;
+
+const GPIO = @import("gpio.zig").GPIO;
 
 const hsi_fq_hz: u32 = 16000000;
 var hse_fq_hz: u32 = undefined;
-
-const Field = struct {
-    pub const RwType = enum {
-        ReadOnly,
-        WriteOnly,
-        ReadWrite,
-    };
-    reg: BusType,
-    width: FieldWidthType,
-    rw: RwType = .ReadWrite,
-    shift: FieldShiftType,
-
-    fn set(self: Field, value: BusType) void {
-        const addr: *volatile BusType = @ptrFromInt(self.reg);
-        if (self.rw == .ReadOnly)
-            return;
-
-        if (self.rw == .WriteOnly) {
-            addr.* = value << self.shift;
-            return;
-        }
-        addr.* = addr.* & self.getResetMask() | ((value << self.shift) & self.getMask());
-    }
-    fn get(self: Field) BusType {
-        const addr: *volatile BusType = @ptrFromInt(self.reg);
-        return ((addr.* & self.getMask()) >> self.shift);
-    }
-
-    fn isAsserted(self: Field) bool {
-        return self.get() != 0;
-    }
-    fn isCleared(self: Field) bool {
-        return self.get() == 0;
-    }
-
-    fn getMask(self: Field) BusType {
-        return ((@as(BusType, 1) << self.width) - 1) << self.shift;
-    }
-
-    fn getResetMask(self: Field) BusType {
-        return ~self.getMask();
-    }
-};
 
 const Register = struct {
     addr: BusType,
@@ -114,18 +76,18 @@ const hal: struct {
     } = .{},
     apb1: struct {
         const base: BusType = 0x40000000;
-        power: POWER = .{ .port = 0x7000 + base, .rcc_switch = .{ .en_reg = .AHB1ENR, .shift = 0 } },
+        power: POWER = .{ .port = 0x7000 + base },
     } = .{},
     ahb1: struct {
         const base: BusType = 0x40020000;
         rcc: RCC = .{ .port = 0x3800 + base },
         flash: FLASH = .{ .port = 0x3C00 + base },
-        gpioa: GPIO = .{ .port = 0x0000 + base, .rcc_switch = .{ .en_reg = .AHB1ENR, .shift = 0 } },
-        gpiob: GPIO = .{ .port = 0x0400 + base, .rcc_switch = .{ .en_reg = .AHB1ENR, .shift = 1 } },
-        gpioc: GPIO = .{ .port = 0x0800 + base, .rcc_switch = .{ .en_reg = .AHB1ENR, .shift = 2 } },
-        gpiod: GPIO = .{ .port = 0x0C00 + base, .rcc_switch = .{ .en_reg = .AHB1ENR, .shift = 3 } },
-        gpioe: GPIO = .{ .port = 0x1000 + base, .rcc_switch = .{ .en_reg = .AHB1ENR, .shift = 4 } },
-        gpioh: GPIO = .{ .port = 0x1C00 + base, .rcc_switch = .{ .en_reg = .AHB1ENR, .shift = 7 } },
+        gpioa: GPIO = .{ .port = 0x0000 + base },
+        gpiob: GPIO = .{ .port = 0x0400 + base },
+        gpioc: GPIO = .{ .port = 0x0800 + base },
+        gpiod: GPIO = .{ .port = 0x0C00 + base },
+        gpioe: GPIO = .{ .port = 0x1000 + base },
+        gpioh: GPIO = .{ .port = 0x1C00 + base },
     } = .{},
     ahb2: struct {
         const base: BusType = 0x50000000;
@@ -133,7 +95,6 @@ const hal: struct {
         var usb_in_eps: [3]USB.InEP = undefined;
         usb: USB = .{
             .port = 0x0 + base,
-            .rcc_switch = .{ .en_reg = .AHB2ENR, .shift = 7 },
             .out_ep = &usb_out_eps,
             .in_ep = &usb_in_eps,
         },
@@ -167,6 +128,9 @@ pub const pll = &hal.pll;
 pub const presc = &hal.presc;
 pub const usb = &hal.ahb2.usb;
 pub const power = &hal.apb1.power;
+pub const pin = GPIO.Pin;
+pub const nvic_interrupt = NVIC.Interrupt;
+pub const periphery = PERIPHERY{};
 
 pub fn udelay(us: BusType, sys_clock_hz: BusType) void {
     const cyccnt: *volatile BusType = @ptrFromInt(0xE0001004); // see DWT
@@ -175,8 +139,8 @@ pub fn udelay(us: BusType, sys_clock_hz: BusType) void {
     const wasted_cycles = sys_clock_hz / 1_000_000 * us;
     while (wasted_cycles > cyccnt.*) {}
 }
-pub fn enableCycleCounter() void {
-    hal.core.dwt.enableCycleCounter();
+pub fn enableCycleCounter() !void {
+    try hal.core.dwt.enableCycleCounter();
 }
 pub fn getSysClockHz() BusType {
     const sysclock_src = hal.mux.sys_clock.values;
@@ -202,19 +166,26 @@ pub fn getSysClockHz() BusType {
     return 0;
 }
 
+fn CommonInterface(comptime T: type) type {
+    return struct {
+        fn getReg(self: *const T, reg: T.Reg) BusType {
+            return switch (T) {
+                inline USB.OutEP, USB.InEP => self.usb.port + @intFromEnum(reg) + @as(BusType, self.idx) * 0x20,
+                inline else => self.port + @intFromEnum(reg),
+            };
+        }
+    };
+}
 pub const USB = struct {
     port: BusType,
     out_ep: []OutEP,
     in_ep: []InEP,
-    rcc_switch: RCC.PeripherySwitch,
     device: DeviceRoutines = .{},
 
     const EndpointDirection = usbp.UsbDevice.Endpoint.Direction;
     const EndpointType = usbp.UsbDevice.Endpoint.Type;
 
-    fn getReg(self: *const USB, reg: Reg) BusType {
-        return self.port + @intFromEnum(reg);
-    }
+    usingnamespace CommonInterface(@This());
 
     pub const Interrupt = enum(FieldWidthType) {
         ModeMismatch = 1, // MMISM
@@ -256,9 +227,7 @@ pub const USB = struct {
         idx: usize = undefined,
         buffer: [2048]u8 = undefined,
         data: []const u8 = undefined,
-        fn getReg(self: *const InEP, reg: InEP.Reg) BusType {
-            return self.usb.port + @intFromEnum(reg) + @as(BusType, self.idx) * 0x20;
-        }
+        usingnamespace CommonInterface(@This());
         fn init(self: *const InEP) void {
             (Register{ .addr = self.getReg(.DIEPINT) }).set(0x287B);
             (Field{ .reg = self.getReg(.DIEPCTL), .width = 1, .rw = .ReadWrite, .shift = 21 }).set(0); // STALL
@@ -469,10 +438,8 @@ pub const USB = struct {
         idx: usize = undefined,
         buffer: [2048]u8 align(4) = undefined,
         data: []align(4) u8 = undefined,
+        usingnamespace CommonInterface(@This());
 
-        fn getReg(self: *const OutEP, reg: OutEP.Reg) BusType {
-            return self.usb.port + @intFromEnum(reg) + @as(BusType, self.idx) * 0x20;
-        }
         fn init(self: *const OutEP) void {
             (Register{ .addr = self.getReg(.DOEPINT) }).set(0xFB7F);
             (Field{ .reg = self.getReg(.DOEPCTL), .width = 1, .rw = .ReadWrite, .shift = 21 }).set(0); // STALL
@@ -1125,14 +1092,6 @@ pub const USB = struct {
         }
     }
 
-    fn hwInit(self: *const USB) void {
-        gpioa.pin(11).configure(.AltFunc, .PushPull, .VeryHigh, .Disabled, 10); // FS_USB Pin Alt function
-        gpioa.pin(12).configure(.AltFunc, .PushPull, .VeryHigh, .Disabled, 10); // FS_USB Pin Alt function
-        rcc.enablePeriphery(self.rcc_switch);
-        rcc.enablePeriphery(.{ .en_reg = .APB2ENR, .shift = 14 }); // sysconfig
-        nvic.enable(.OTG_FS);
-    }
-
     fn deviceInit(self: *const USB) void {
         self.setMode(.Device);
         self.unmaskInterrupt(.UsbReset);
@@ -1143,7 +1102,6 @@ pub const USB = struct {
 
     pub fn init(self: *const USB, mode: Mode, fifo_config: FifoConfig) void {
         self.dataInit();
-        self.hwInit();
         self.coreInit();
         switch (mode) {
             .Device => self.deviceInit(),
@@ -1259,9 +1217,7 @@ const PLL = struct {
 
 const FLASH = struct {
     port: BusType,
-    fn getReg(self: *const FLASH, reg: Reg) BusType {
-        return self.port + @intFromEnum(reg);
-    }
+    usingnamespace CommonInterface(@This());
     const Reg = enum(BusType) {
         ACR = 0x00, // Flash access control register
         KEYR = 0x04, // Flash key register
@@ -1286,11 +1242,9 @@ const FLASH = struct {
 
 const DWT = struct {
     port: BusType,
-    fn getReg(self: *const DWT, reg: Reg) BusType {
-        return self.port + @intFromEnum(reg);
-    }
-    fn enableCycleCounter(self: *const DWT) void {
-        scs.enableTrace();
+    usingnamespace CommonInterface(@This());
+    fn enableCycleCounter(self: *const DWT) !void {
+        try scs.write(SCS.Trace.Enabled);
         (Register{ .addr = self.getReg(.LAR) }).set(0xC5ACCE55);
         (Register{ .addr = self.getReg(.CYCCNT) }).reset();
         (Field{ .reg = self.getReg(.CTRL), .width = 1, .shift = 0 }).set(1);
@@ -1305,9 +1259,7 @@ const DWT = struct {
 const NVIC = struct {
     port: BusType,
     prio_bits: u4 = 4,
-    fn getReg(self: *const NVIC, reg: Reg) BusType {
-        return self.port + @intFromEnum(reg);
-    }
+    usingnamespace CommonInterface(@This());
     const Reg = enum(BusType) {
         ISER = 0x0, // Enable bits space
         IP = 0x300, // Priotiry u8 address space
@@ -1328,12 +1280,12 @@ const NVIC = struct {
         field.set(1);
     }
 
-    pub fn setPriority(self: *const NVIC, irq: Interrupt, preempt_prio: u4, sub_prio: u4) void {
-        @as(*volatile u8, @ptrFromInt(self.getReg(.IP) + @intFromEnum(irq))).* = self.encodePriority(preempt_prio, sub_prio);
+    pub fn setPriority(self: *const NVIC, irq: Interrupt, preempt_prio: u4, sub_prio: u4) !void {
+        @as(*volatile u8, @ptrFromInt(self.getReg(.IP) + @intFromEnum(irq))).* = try self.encodePriority(preempt_prio, sub_prio);
     }
 
-    fn encodePriority(self: *const NVIC, preempt_prio: u4, sub_prio: u4) u8 {
-        const grouping_prio = self.getGroupingPriorityValue();
+    fn encodePriority(self: *const NVIC, preempt_prio: u4, sub_prio: u4) !u8 {
+        const grouping_prio = try scs.read(SCS.InterruptGroupingPriority);
         const preempt_prio_bits = blk: {
             if (0x7 - grouping_prio > self.prio_bits)
                 break :blk self.prio_bits;
@@ -1349,56 +1301,9 @@ const NVIC = struct {
         return @truncate(((preempt_prio & ((@as(u32, 1) << preempt_prio_bits) - 1)) << sub_prio_bits) | (sub_prio & ((@as(u32, 1) << sub_prio_bits) - 1)));
     }
 
-    fn getGroupingPriorityValue(self: *const NVIC) u3 {
+    pub fn setGroupingPriority(self: *const NVIC, prio: GroupingPriority) !void {
         _ = self; // autofix
-        return @truncate((Field{ .reg = scs.getReg(.AIRCR), .width = 3, .shift = 8, .rw = .ReadWrite }).get());
-    }
-
-    pub fn setGroupingPriority(self: *const NVIC, prio: GroupingPriority) void {
-        _ = self; // autofix
-        const aircr = Register{ .addr = scs.getReg(.AIRCR) };
-        var aircr_value = aircr.get();
-        (Field{ .reg = @intFromPtr(&aircr_value), .width = 16, .shift = 16, .rw = .ReadWrite }).set(0x5FA); // key
-        (Field{ .reg = @intFromPtr(&aircr_value), .width = 3, .shift = 8, .rw = .ReadWrite }).set(@intFromEnum(prio));
-        aircr.set(aircr_value);
-    }
-};
-
-const SCS = struct {
-    port: BusType,
-    fn getReg(self: *const SCS, reg: Reg) BusType {
-        return self.port + @intFromEnum(reg);
-    }
-    const Reg = enum(BusType) {
-        ACTLR = 0x08, // Auxiliary control register
-        CPUID = 0xD00, // CPUID base register
-        ICSR = 0xD04, // Interrupt control and state register
-        VTOR = 0xD08, // Vector table offset register
-        AIRCR = 0xD0C, // Application interrupt and reset control register
-        SCR = 0xD10, // System control register
-        CCR = 0xD14, // Configuration and control register
-        SHPR1 = 0xD18, // System handler priority register
-        SHPR2 = 0xD1C, // System handler priority register
-        SHPR3 = 0xD20, // System handler priority register
-        SHCSR = 0xD24, // System handler control and state register
-        CFSR_MMSR_BFSR_UFSR = 0xD28, // Configurable fault status register
-        HFSR = 0xD2C, // Hard fault status register
-        MMAR = 0xD34, // Memory management fault address register
-        BFAR = 0xD38, // Bus fault address register
-        AFSR = 0xD3C, // Auxiliary fault status register
-        DHCSR = 0xDF0, //  Debug Halting Control and Status Register */
-        DCRSR = 0xDF4, //  Debug Core Register Selector Register */
-        DCRDR = 0xDF8, //  Debug Core Register Data Register */
-        DEMCR = 0xDFC, //  Debug Exception and Monitor Control Register */
-    };
-    pub fn setSramVtor(self: *const SCS) void {
-        (Field{ .reg = self.getReg(.VTOR), .width = 1, .shift = 29 }).set(1);
-    }
-    inline fn enableTrace(self: *const SCS) void {
-        (Field{ .reg = self.getReg(.DEMCR), .width = 1, .shift = 24 }).set(1);
-    }
-    fn disableTrace(self: *const SCS) void {
-        (Field{ .reg = self.getReg(.DEMCR), .width = 1, .shift = 24 }).set(0);
+        try scs.write(SCS.InterruptGroupingPriority{ .value = @intFromEnum(prio) });
     }
 };
 
@@ -1426,14 +1331,9 @@ const MUXER = struct {
 
 const POWER = struct {
     port: BusType,
-    rcc_switch: RCC.PeripherySwitch,
-    fn getReg(self: *const POWER, reg: Reg) BusType {
-        return self.port + @intFromEnum(reg);
-    }
+    usingnamespace CommonInterface(@This());
 
     pub fn configure(self: *const POWER, comptime cpu_hz: usize) void {
-        rcc.enablePeriphery(self.rcc_switch);
-
         const mode = switch (cpu_hz) {
             0...64_000_000 => 1,
             64_000_001...84_000_000 => 2,
@@ -1450,9 +1350,8 @@ const POWER = struct {
 
 const RCC = struct {
     port: BusType,
-    fn getReg(self: *const RCC, reg: Reg) BusType {
-        return self.port + @intFromEnum(reg);
-    }
+    usingnamespace CommonInterface(@This());
+
     const ClockSource = enum { HSI, HSE };
     const PeripherySwitch = struct {
         en_reg: Reg,
@@ -1462,7 +1361,6 @@ const RCC = struct {
     const HSEMode = enum { Crystal };
 
     pub fn enableHSE(self: *const RCC, mode: HSEMode, comptime fq: u32) void {
-        gpioh.enable();
         hse_fq_hz = fq;
 
         switch (mode) {
@@ -1513,79 +1411,39 @@ const RCC = struct {
     };
 };
 
-const GPIO = struct {
-    port: BusType,
-    rcc_switch: RCC.PeripherySwitch,
-    fn getReg(self: *const GPIO, reg: Reg) BusType {
-        return self.port + @intFromEnum(reg);
-    }
-    const Reg = enum(BusType) {
-        MODER = 0x0,
-        OTYPER = 0x4,
-        OSPEEDR = 0x8,
-        PUPDR = 0xC,
-        IDR = 0x10,
-        BRSR = 0x18,
-        AFR = 0x20,
-    };
-    const MODE = enum(u2) { Input = 0, Output = 1, AltFunc = 2, Analog = 3 };
-    const OTYPE = enum(u1) { PushPull = 0, OpenDrain = 1 };
-    const OSPEED = enum(u2) { Low = 0, Medium = 1, High = 2, VeryHigh = 3 };
-    const PUPD = enum(u2) { Disabled = 0, PullUp = 1, PullDown = 2, Reserved = 3 };
-
-    pub fn pin(self: *const GPIO, nr: u4) Pin {
-        return .{ .gpio = self, .pin = nr };
-    }
-    fn enable(self: *const GPIO) void {
-        rcc.enablePeriphery(self.rcc_switch);
-    }
-
-    const Pin = struct {
-        gpio: *const GPIO,
-        pin: u4,
-
-        pub fn configure(self: *const Pin, mode: MODE, otype: OTYPE, ospeed: OSPEED, pupd: PUPD, af: u4) void {
-            if (mode == .AltFunc)
-                rcc.enablePeriphery(self.gpio.rcc_switch);
-            self.getMODER().set(@intFromEnum(mode));
-            self.getOTYPER().set(@intFromEnum(otype));
-            self.getOSPEEDR().set(@intFromEnum(ospeed));
-            self.getPUPDR().set(@intFromEnum(pupd));
-            if (mode == .AltFunc)
-                self.getAFR().set(af);
-        }
-        pub fn isAsserted(self: Pin) bool {
-            return !(self.getIDR().get() == 0);
-        }
-        pub fn assert(self: Pin) void {
-            self.getBSR().set(1);
-        }
-        pub fn reset(self: Pin) void {
-            self.getBRR().set(1);
-        }
-        fn getMODER(self: Pin) Field {
-            return .{ .reg = self.gpio.getReg(.MODER), .rw = .ReadWrite, .shift = self.pin * @as(FieldShiftType, 2), .width = 2 };
-        }
-        fn getOTYPER(self: Pin) Field {
-            return .{ .reg = self.gpio.getReg(.OTYPER), .rw = .ReadWrite, .shift = self.pin, .width = 1 };
-        }
-        fn getOSPEEDR(self: Pin) Field {
-            return .{ .reg = self.gpio.getReg(.OSPEEDR), .rw = .ReadWrite, .shift = self.pin * @as(FieldShiftType, 2), .width = 2 };
-        }
-        fn getPUPDR(self: Pin) Field {
-            return .{ .reg = self.gpio.getReg(.PUPDR), .rw = .ReadWrite, .shift = self.pin * @as(FieldShiftType, 2), .width = 2 };
-        }
-        fn getAFR(self: Pin) Field {
-            return .{ .reg = self.gpio.getReg(.AFR) + (self.pin / 8) * 4, .rw = .ReadWrite, .shift = (self.pin % 8) * @as(FieldShiftType, 4), .width = 4 };
-        }
-        fn getBSR(self: Pin) Field {
-            return .{ .reg = self.gpio.getReg(.BRSR), .rw = .WriteOnly, .shift = self.pin, .width = 1 };
-        }
-        fn getBRR(self: Pin) Field {
-            return .{ .reg = self.gpio.getReg(.BRSR), .rw = .WriteOnly, .shift = @as(FieldShiftType, 0x10) + self.pin, .width = 1 };
-        }
-        fn getIDR(self: Pin) Field {
-            return .{ .reg = self.gpio.getReg(.IDR), .rw = .ReadOnly, .shift = self.pin, .width = 1 };
-        }
-    };
+pub const PERIPHERY = struct {
+    pub usingnamespace platform.SwitchInterface(@This(), 0x40020000 + 0x3800);
+    pub const SPI1: struct {
+        pub usingnamespace Field.Interface(@This(), RCC.Reg.APB2ENR, 12);
+    } = .{};
+    pub const GPIOA: struct {
+        pub usingnamespace Field.Interface(@This(), RCC.Reg.AHB1ENR, 0);
+    } = .{};
+    pub const GPIOB: struct {
+        pub usingnamespace Field.Interface(@This(), RCC.Reg.AHB1ENR, 1);
+    } = .{};
+    pub const GPIOC: struct {
+        pub usingnamespace Field.Interface(@This(), RCC.Reg.AHB1ENR, 2);
+    } = .{};
+    pub const GPIOD: struct {
+        pub usingnamespace Field.Interface(@This(), RCC.Reg.AHB1ENR, 3);
+    } = .{};
+    pub const GPIOE: struct {
+        pub usingnamespace Field.Interface(@This(), RCC.Reg.AHB1ENR, 4);
+    } = .{};
+    pub const GPIOH: struct {
+        pub usingnamespace Field.Interface(@This(), RCC.Reg.AHB1ENR, 7);
+    } = .{};
+    pub const POWER: struct {
+        pub usingnamespace Field.Interface(@This(), RCC.Reg.APB1ENR, 28);
+    } = .{};
+    pub const OTGUSB: struct {
+        pub usingnamespace Field.Interface(@This(), RCC.Reg.AHB2ENR, 7);
+    } = .{};
+    pub const SYSCONFIG: struct {
+        pub usingnamespace Field.Interface(@This(), RCC.Reg.APB2ENR, 14);
+    } = .{};
+    pub const TIM1: struct {
+        pub usingnamespace Field.Interface(@This(), RCC.Reg.APB2ENR, 0);
+    } = .{};
 };

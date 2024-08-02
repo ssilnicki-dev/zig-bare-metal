@@ -33,7 +33,10 @@ export fn init_data() void {
 export fn _start() void {
     init_data();
     flash_init();
-    main.main();
+    main.main() catch {
+        asm volatile ("nop");
+        asm volatile ("b .-2");
+    };
     asm volatile ("nop");
     asm volatile ("b .-2");
 }
