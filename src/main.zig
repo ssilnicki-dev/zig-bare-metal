@@ -23,6 +23,12 @@ pub fn main() !void {
     try hal.nvic.setGroupingPriority(.Group4);
 
     hal.periphery.enable(hal.PERIPHERY.GPIOA);
+    hal.gpioa.pin(5).configure(.{ .alt_fn = 5 }, .PushPull, .VeryHigh, .Disabled); // SPI Pin Alt function
+    hal.gpioa.pin(6).configure(.{ .alt_fn = 5 }, .PushPull, .VeryHigh, .Disabled); // SPI Pin Alt function
+    hal.gpioa.pin(7).configure(.{ .alt_fn = 5 }, .PushPull, .VeryHigh, .Disabled); // SPI Pin Alt function
+    hal.periphery.enable(hal.PERIPHERY.SPI1);
+
+    hal.periphery.enable(hal.PERIPHERY.GPIOA);
     hal.gpioa.pin(11).configure(.{ .alt_fn = 10 }, .PushPull, .VeryHigh, .Disabled); // FS_USB Pin Alt function
     hal.gpioa.pin(12).configure(.{ .alt_fn = 10 }, .PushPull, .VeryHigh, .Disabled); // FS_USB Pin Alt function
     hal.periphery.enable(hal.PERIPHERY.OTGUSB);

@@ -1,6 +1,7 @@
 const usbp = @import("usbp.zig");
 const platform = @import("platform32.zig");
 const SCS = @import("scs.zig").SCS;
+const SPI = @import("spi.zig").SPI;
 
 const BusType = platform.BusType;
 const FieldShiftType = platform.FieldShiftType;
@@ -78,6 +79,10 @@ const hal: struct {
         const base: BusType = 0x40000000;
         power: POWER = .{ .port = 0x7000 + base },
     } = .{},
+    apb2: struct {
+        const base: BusType = 0x40010000;
+        spi1: SPI = .{ .port = 0x3000 + base },
+    } = .{},
     ahb1: struct {
         const base: BusType = 0x40020000;
         rcc: RCC = .{ .port = 0x3800 + base },
@@ -128,6 +133,7 @@ pub const pll = &hal.pll;
 pub const presc = &hal.presc;
 pub const usb = &hal.ahb2.usb;
 pub const power = &hal.apb1.power;
+pub const spi1 = &hal.apb2.spi1;
 pub const pin = GPIO.Pin;
 pub const nvic_interrupt = NVIC.Interrupt;
 pub const periphery = PERIPHERY{};
